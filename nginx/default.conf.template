@@ -1,0 +1,142 @@
+server {
+    listen 80 default_server;
+
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+
+    # =====================================================
+    # Backend API
+    # =====================================================
+    #
+    # Öffentlich:
+    #
+    #   http://SERVER_IP/api/...
+    #
+    # Docker-intern:
+    #
+    #   http://backend:8080/api/...
+    #
+    # Der Slash hinter /api bleibt erhalten.
+    #
+    # Beispiel:
+    #
+    #   /api/products
+    #
+    # wird:
+    #
+    #   http://backend:8080/api/products
+    #
+    # Falls dein Backend selbst KEIN /api verwendet,
+    # ändere proxy_pass später auf:
+    #
+    #   proxy_pass http://backend:8080/;
+    #
+    # =====================================================
+
+    location /api/ {
+        proxy_pass http://backend:8080/;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Real-IP $remote_addr;
+
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+
+    # =====================================================
+    # Keycloak Admin
+    # =====================================================
+    #
+    # Admin GUI / Admin API nur von der konfigurierten
+    # ADMIN_ALLOWED_CIDR erreichbar.
+    #
+    # Beispiel:
+    #
+    # ADMIN_ALLOWED_CIDR=198.51.100.25/32
+    #
+    # =====================================================
+
+    location ^~ /auth/admin/ {
+        allow ${ADMIN_ALLOWED_CIDR};
+        deny all;
+
+        proxy_pass http://keycloak:8080;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Real-IP $remote_addr;
+
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+
+    # =====================================================
+    # Keycloak
+    # =====================================================
+    #
+    # Muss öffentlich erreichbar sein.
+    #
+    # Browser:
+    #
+    #   http://SERVER_IP/auth/
+    #
+    # Docker-intern:
+    #
+    #   http://keycloak:8080/auth/
+    #
+    # =====================================================
+
+    location /auth/ {
+        proxy_pass http://keycloak:8080;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Real-IP $remote_addr;
+
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header X-Forwarded-Port $server_port;
+    }
+
+
+    # =====================================================
+    # Frontend
+    # =====================================================
+    #
+    # Muss ganz unten stehen, weil "/" sonst auch /api und
+    # /auth matchen würde.
+    #
+    # SPA fallback auf index.html.
+    #
+    # =====================================================
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

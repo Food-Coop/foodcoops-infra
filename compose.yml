@@ -1,0 +1,411 @@
+name: ${COMPOSE_PROJECT_NAME:-foodcoops}
+
+services:
+
+  # ===========================================================================
+  # nginx configuration initializer
+  # ===========================================================================
+  #
+  # Renders:
+  #
+  #   nginx/default.conf.template
+  #
+  # into:
+  #
+  #   /etc/nginx/conf.d/default.conf
+  #
+  # The rendered configuration is stored in the nginx_cfg Docker volume.
+  #
+  # ===========================================================================
+
+  nginx-config-init:
+    image: nginx:alpine
+
+    restart: "no"
+
+    environment:
+      ADMIN_ALLOWED_CIDR: ${ADMIN_ALLOWED_CIDR}
+
+    entrypoint:
+      - /bin/sh
+
+    command:
+      - -c
+      - |
+        envsubst '$$ADMIN_ALLOWED_CIDR' \
+          < /templates/default.conf.template \
+          > /etc/nginx/conf.d/default.conf
+
+    volumes:
+      - ./nginx/default.conf.template:/templates/default.conf.template:ro
+      - nginx_cfg:/etc/nginx/conf.d
+
+    networks:
+      - foodcoops
+
+
+  # ===========================================================================
+  # Frontend / nginx
+  # ===========================================================================
+
+  frontend:
+    build:
+      context: ../foodcoops-frontend
+      dockerfile: Dockerfile
+
+      # Create React App variables are required while the frontend is built.
+      #
+      # The frontend Dockerfile must declare corresponding ARG variables.
+      args:
+        REACT_APP_NAME: ${REACT_APP_NAME}
+        REACT_APP_VERSION: ${REACT_APP_VERSION}
+
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL}
+        REACT_APP_KEYCLOAK_URL: ${REACT_APP_KEYCLOAK_URL}
+
+        REACT_APP_KEYCLOAK_REALM: ${REACT_APP_KEYCLOAK_REALM}
+        REACT_APP_KEYCLOAK_CLIENT_ID: ${REACT_APP_KEYCLOAK_CLIENT_ID}
+
+    restart: unless-stopped
+
+    volumes:
+      - nginx_cfg:/etc/nginx/conf.d
+
+    ports:
+      - "${FRONTEND_PORT}:80"
+
+    depends_on:
+      nginx-config-init:
+        condition: service_completed_successfully
+
+      backend:
+        condition: service_started
+
+      keycloak:
+        condition: service_healthy
+
+    networks:
+      - foodcoops
+
+
+  # ===========================================================================
+  # Food-Coop Backend
+  # ===========================================================================
+
+  backend:
+    build:
+      context: ../foodcoops-backend
+      dockerfile: Dockerfile
+
+    restart: unless-stopped
+
+    expose:
+      - "${BACKEND_PORT_INTERNAL}"
+
+    environment:
+
+      # -----------------------------------------------------------------------
+      # General
+      # -----------------------------------------------------------------------
+
+      TZ: Europe/Berlin
+
+      SERVER_PORT: ${SERVER_PORT}
+
+
+      # -----------------------------------------------------------------------
+      # MariaDB
+      # -----------------------------------------------------------------------
+
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME}
+
+
+      # -----------------------------------------------------------------------
+      # JPA
+      # -----------------------------------------------------------------------
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+
+      SPRING_JPA_GENERATE_DDL: ${SPRING_JPA_GENERATE_DDL}
+
+      SPRING_JPA_SHOW_SQL: ${SPRING_JPA_SHOW_SQL}
+
+      SPRING_SQL_INIT_MODE: ${SPRING_SQL_INIT_MODE}
+
+
+      # -----------------------------------------------------------------------
+      # Keycloak / Spring Security OAuth2 Resource Server
+      # -----------------------------------------------------------------------
+
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI}
+
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI}
+
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+
+      KEYCLOAK_BACKEND_CLIENT_ID: ${KEYCLOAK_BACKEND_CLIENT_ID}
+
+
+      # -----------------------------------------------------------------------
+      # Mail
+      # -----------------------------------------------------------------------
+
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST}
+
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT}
+
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
+
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+
+      SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH}
+
+      SPRING_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE}
+
+    depends_on:
+
+      backend-db:
+        condition: service_healthy
+
+      keycloak:
+        condition: service_healthy
+
+    networks:
+      - foodcoops
+
+
+  # ===========================================================================
+  # Food-Coop Backend MariaDB
+  # ===========================================================================
+
+  backend-db:
+    image: mariadb:11.8
+
+    restart: unless-stopped
+
+    environment:
+
+      MARIADB_DATABASE: ${BACKEND_DB_DATABASE}
+
+      MARIADB_USER: ${BACKEND_DB_USER}
+
+      MARIADB_PASSWORD: ${BACKEND_DB_PASSWORD}
+
+      MARIADB_ROOT_PASSWORD: ${BACKEND_DB_ROOT_PASSWORD}
+
+    volumes:
+      - backend_db:/var/lib/mysql
+
+    expose:
+      - "${MARIADB_PORT_INTERNAL}"
+
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+
+      interval: 10s
+
+      timeout: 5s
+
+      retries: 10
+
+      start_period: 30s
+
+    networks:
+      - foodcoops
+
+
+  # ===========================================================================
+  # Keycloak
+  # ===========================================================================
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.1
+
+    restart: unless-stopped
+
+    command:
+      - start
+
+    environment:
+
+      # -----------------------------------------------------------------------
+      # Database
+      # -----------------------------------------------------------------------
+
+      KC_DB: ${KC_DB}
+
+      KC_DB_URL_HOST: ${KC_DB_URL_HOST}
+
+      KC_DB_URL_PORT: ${KC_DB_URL_PORT}
+
+      KC_DB_URL_DATABASE: ${KC_DB_URL_DATABASE}
+
+      KC_DB_USERNAME: ${KC_DB_USERNAME}
+
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+
+
+      # -----------------------------------------------------------------------
+      # HTTP
+      # -----------------------------------------------------------------------
+
+      KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
+
+      KC_HTTP_RELATIVE_PATH: ${KC_HTTP_RELATIVE_PATH}
+
+
+      # -----------------------------------------------------------------------
+      # Public hostname
+      # -----------------------------------------------------------------------
+
+      KC_HOSTNAME: ${KC_HOSTNAME}
+
+      KC_HOSTNAME_STRICT: ${KC_HOSTNAME_STRICT}
+
+
+      # -----------------------------------------------------------------------
+      # Reverse Proxy
+      # -----------------------------------------------------------------------
+
+      KC_PROXY_HEADERS: ${KC_PROXY_HEADERS}
+
+
+      # -----------------------------------------------------------------------
+      # Health
+      # -----------------------------------------------------------------------
+
+      KC_HEALTH_ENABLED: ${KC_HEALTH_ENABLED}
+
+      # Important:
+      #
+      # KC_HTTP_RELATIVE_PATH is /auth.
+      #
+      # Without this explicit setting, the management interface can inherit
+      # /auth and the health endpoint would become:
+      #
+      #   /auth/health/ready
+      #
+      # We deliberately keep management endpoints at:
+      #
+      #   http://keycloak:9000/health/ready
+
+      KC_HTTP_MANAGEMENT_RELATIVE_PATH: "/"
+
+
+      # -----------------------------------------------------------------------
+      # Bootstrap Admin
+      # -----------------------------------------------------------------------
+      #
+      # These are the current Keycloak variable names.
+      #
+      # Our .env still uses:
+      #
+      #   KEYCLOAK_ADMIN
+      #   KEYCLOAK_ADMIN_PASSWORD
+      #
+      # for readability.
+      #
+      # -----------------------------------------------------------------------
+
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+    depends_on:
+
+      keycloak-db:
+        condition: service_healthy
+
+    expose:
+      - "${KEYCLOAK_PORT_INTERNAL}"
+      - "${KEYCLOAK_MANAGEMENT_PORT_INTERNAL}"
+
+    healthcheck:
+
+      # The official Keycloak image intentionally does not contain curl.
+      #
+      # Keycloak documents using Bash + /dev/tcp for container health checks.
+
+      test: >-
+        bash -c "{ printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0;
+        grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"
+
+      interval: 10s
+
+      timeout: 5s
+
+      retries: 20
+
+      start_period: 30s
+
+    networks:
+      - foodcoops
+
+
+  # ===========================================================================
+  # Keycloak MariaDB
+  # ===========================================================================
+
+  keycloak-db:
+    image: mariadb:11.8
+
+    restart: unless-stopped
+
+    environment:
+
+      MARIADB_DATABASE: ${KEYCLOAK_DB_DATABASE}
+
+      MARIADB_USER: ${KEYCLOAK_DB_USER}
+
+      MARIADB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+
+      MARIADB_ROOT_PASSWORD: ${KEYCLOAK_DB_ROOT_PASSWORD}
+
+    volumes:
+      - keycloak_db:/var/lib/mysql
+
+    expose:
+      - "${MARIADB_PORT_INTERNAL}"
+
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+
+      interval: 10s
+
+      timeout: 5s
+
+      retries: 10
+
+      start_period: 30s
+
+    networks:
+      - foodcoops
+
+
+# =============================================================================
+# Network
+# =============================================================================
+
+networks:
+
+  foodcoops:
+    driver: bridge
+
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+
+  nginx_cfg:
+
+  backend_db:
+
+  keycloak_db:
