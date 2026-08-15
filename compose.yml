@@ -50,7 +50,7 @@ services:
 
   frontend:
     build:
-      context: ../foodcoops-frontend
+      context: ../foodcoops-pwa
       dockerfile: Dockerfile
 
       # Create React App variables are required while the frontend is built.
