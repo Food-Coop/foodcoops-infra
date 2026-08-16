@@ -3,38 +3,18 @@ name: ${COMPOSE_PROJECT_NAME:-foodcoops}
 services:
 
   # ===========================================================================
-  # nginx configuration initializer
-  # ===========================================================================
-  #
-  # Renders:
-  #
-  #   nginx/default.conf.template
-  #
-  # into:
-  #
-  #   /etc/nginx/conf.d/default.conf
-  #
-  # The rendered configuration is stored in the nginx_cfg Docker volume.
-  #
+  # nginx configuration
   # ===========================================================================
 
   nginx-config-init:
     image: nginx:alpine
-
     restart: "no"
 
-    environment:
-      ADMIN_ALLOWED_CIDR: ${ADMIN_ALLOWED_CIDR}
+
 
     entrypoint:
       - /bin/sh
 
-    command:
-      - -c
-      - |
-        envsubst '$$ADMIN_ALLOWED_CIDR' \
-          < /templates/default.conf.template \
-          > /etc/nginx/conf.d/default.conf
 
     volumes:
       - ./nginx/default.conf.template:/templates/default.conf.template:ro
@@ -45,17 +25,67 @@ services:
 
 
   # ===========================================================================
-  # Frontend / nginx
+  # Initial Let's Encrypt certificate
+  # ===========================================================================
+  #
+  # Runs once before nginx starts.
+  #
+  # If a certificate already exists, this service exits immediately.
+  #
+  # network_mode: host is used so Certbot can temporarily listen directly
+  # on host port 80 during the very first certificate request.
+  #
+  # ===========================================================================
+
+  certbot-init:
+    image: certbot/certbot:latest
+    restart: "no"
+
+    network_mode: host
+
+    environment:
+      DOMAIN: ${DOMAIN}
+      ROOT_DOMAIN: ${ROOT_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME}
+
+    entrypoint:
+      - /bin/sh
+
+    command:
+      - -c
+      - |
+        if [ -f "/etc/letsencrypt/live/$$CERTBOT_CERT_NAME/fullchain.pem" ]; then
+          echo "Let's Encrypt certificate already exists."
+          exit 0
+        fi
+
+        echo "Requesting Let's Encrypt certificate..."
+
+        certbot certonly \
+          --standalone \
+          --preferred-challenges http \
+          --non-interactive \
+          --agree-tos \
+          --no-eff-email \
+          --email "$$LETSENCRYPT_EMAIL" \
+          --cert-name "$$CERTBOT_CERT_NAME" \
+          -d "$$ROOT_DOMAIN" \
+          -d "$$DOMAIN"
+
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+
+
+  # ===========================================================================
+  # Frontend / nginx / Reverse Proxy
   # ===========================================================================
 
   frontend:
     build:
-      context: ../foodcoops-pwa
+      context: ../foodcoops-frontend
       dockerfile: Dockerfile
 
-      # Create React App variables are required while the frontend is built.
-      #
-      # The frontend Dockerfile must declare corresponding ARG variables.
       args:
         REACT_APP_NAME: ${REACT_APP_NAME}
         REACT_APP_VERSION: ${REACT_APP_VERSION}
@@ -68,28 +98,130 @@ services:
 
     restart: unless-stopped
 
-    volumes:
-      - nginx_cfg:/etc/nginx/conf.d
-
-    ports:
-      - "${FRONTEND_PORT}:80"
-
     depends_on:
       nginx-config-init:
         condition: service_completed_successfully
 
-      backend:
-        condition: service_started
+      certbot-init:
+        condition: service_completed_successfully
 
-      keycloak:
-        condition: service_healthy
+    volumes:
+      - nginx_cfg:/etc/nginx/conf.d
+
+      # Let's Encrypt certificates
+      - certbot_conf:/etc/letsencrypt:ro
+
+      # ACME challenge files for later certificate renewals
+      - certbot_www:/var/www/certbot:ro
+
+    ports:
+      - "80:80"
+      - "443:443"
+
+    # Watch the certificate file.
+    #
+    # If Certbot renews it, nginx automatically reloads the new certificate.
+    entrypoint:
+      - /bin/sh
+      - -c
+
+    command:
+      - |
+        CERT="/etc/letsencrypt/live/${CERTBOT_CERT_NAME}/fullchain.pem"
+
+        LAST_HASH="$$(sha256sum "$$CERT" | awk '{print $$1}')"
+
+        (
+          while sleep 300; do
+
+            NEW_HASH="$$(sha256sum "$$CERT" 2>/dev/null | awk '{print $$1}' || true)"
+
+            if [ -n "$$NEW_HASH" ] && [ "$$NEW_HASH" != "$$LAST_HASH" ]; then
+
+              echo "TLS certificate changed - reloading nginx..."
+
+              if nginx -t; then
+                nginx -s reload
+                LAST_HASH="$$NEW_HASH"
+              fi
+
+            fi
+
+          done
+        ) &
+
+        exec nginx -g 'daemon off;'
 
     networks:
       - foodcoops
 
 
   # ===========================================================================
-  # Food-Coop Backend
+  # Automatic Let's Encrypt renewal
+  # ===========================================================================
+  #
+  # Checks twice per day.
+  #
+  # nginx serves:
+  #
+  # /.well-known/acme-challenge/
+  #
+  # from the shared certbot_www volume.
+  #
+  # ===========================================================================
+
+  certbot-renew:
+    image: certbot/certbot:latest
+
+    restart: unless-stopped
+
+    depends_on:
+      frontend:
+        condition: service_started
+
+    environment:
+      DOMAIN: ${DOMAIN}
+      ROOT_DOMAIN: ${ROOT_DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+      CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME}
+
+    entrypoint:
+      - /bin/sh
+
+    command:
+      - -c
+      - |
+        while true; do
+
+          sleep 12h
+
+          echo "Checking Let's Encrypt certificate..."
+
+          certbot certonly \
+            --webroot \
+            --webroot-path /var/www/certbot \
+            --non-interactive \
+            --agree-tos \
+            --no-eff-email \
+            --email "$$LETSENCRYPT_EMAIL" \
+            --cert-name "$$CERTBOT_CERT_NAME" \
+            --keep-until-expiring \
+            -d "$$ROOT_DOMAIN" \
+            -d "$$DOMAIN" \
+            || true
+
+        done
+
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+
+    networks:
+      - foodcoops
+
+
+  # ===========================================================================
+  # Backend
   # ===========================================================================
 
   backend:
@@ -103,10 +235,6 @@ services:
       - "${BACKEND_PORT_INTERNAL}"
 
     environment:
-
-      # -----------------------------------------------------------------------
-      # General
-      # -----------------------------------------------------------------------
 
       TZ: Europe/Berlin
 
@@ -140,7 +268,7 @@ services:
 
 
       # -----------------------------------------------------------------------
-      # Keycloak / Spring Security OAuth2 Resource Server
+      # Keycloak / JWT
       # -----------------------------------------------------------------------
 
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI}
@@ -169,7 +297,6 @@ services:
       SPRING_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE}
 
     depends_on:
-
       backend-db:
         condition: service_healthy
 
@@ -181,7 +308,7 @@ services:
 
 
   # ===========================================================================
-  # Food-Coop Backend MariaDB
+  # Backend MariaDB
   # ===========================================================================
 
   backend-db:
@@ -191,8 +318,11 @@ services:
 
     environment:
       MARIADB_DATABASE: ${BACKEND_DB_DATABASE}
+
       MARIADB_USER: ${BACKEND_DB_USER}
+
       MARIADB_PASSWORD: ${BACKEND_DB_PASSWORD}
+
       MARIADB_ROOT_PASSWORD: ${BACKEND_DB_ROOT_PASSWORD}
 
     volumes:
@@ -201,11 +331,9 @@ services:
     expose:
       - "${MARIADB_PORT_INTERNAL}"
 
-    ports:
-      - "127.0.0.1:3307:3306"
-
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+
       interval: 10s
       timeout: 5s
       retries: 10
@@ -247,7 +375,7 @@ services:
 
 
       # -----------------------------------------------------------------------
-      # HTTP
+      # HTTP behind nginx
       # -----------------------------------------------------------------------
 
       KC_HTTP_ENABLED: ${KC_HTTP_ENABLED}
@@ -256,7 +384,7 @@ services:
 
 
       # -----------------------------------------------------------------------
-      # Public hostname
+      # Public URL
       # -----------------------------------------------------------------------
 
       KC_HOSTNAME: ${KC_HOSTNAME}
@@ -277,35 +405,11 @@ services:
 
       KC_HEALTH_ENABLED: ${KC_HEALTH_ENABLED}
 
-      # Important:
-      #
-      # KC_HTTP_RELATIVE_PATH is /auth.
-      #
-      # Without this explicit setting, the management interface can inherit
-      # /auth and the health endpoint would become:
-      #
-      #   /auth/health/ready
-      #
-      # We deliberately keep management endpoints at:
-      #
-      #   http://keycloak:9000/health/ready
-
       KC_HTTP_MANAGEMENT_RELATIVE_PATH: "/"
 
 
       # -----------------------------------------------------------------------
-      # Bootstrap Admin
-      # -----------------------------------------------------------------------
-      #
-      # These are the current Keycloak variable names.
-      #
-      # Our .env still uses:
-      #
-      #   KEYCLOAK_ADMIN
-      #   KEYCLOAK_ADMIN_PASSWORD
-      #
-      # for readability.
-      #
+      # Initial Admin
       # -----------------------------------------------------------------------
 
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
@@ -313,7 +417,6 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
 
     depends_on:
-
       keycloak-db:
         condition: service_healthy
 
@@ -322,21 +425,13 @@ services:
       - "${KEYCLOAK_MANAGEMENT_PORT_INTERNAL}"
 
     healthcheck:
-
-      # The official Keycloak image intentionally does not contain curl.
-      #
-      # Keycloak documents using Bash + /dev/tcp for container health checks.
-
       test: >-
         bash -c "{ printf 'HEAD /health/ready HTTP/1.0\r\n\r\n' >&0;
         grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000"
 
       interval: 10s
-
       timeout: 5s
-
       retries: 20
-
       start_period: 30s
 
     networks:
@@ -353,7 +448,6 @@ services:
     restart: unless-stopped
 
     environment:
-
       MARIADB_DATABASE: ${KEYCLOAK_DB_DATABASE}
 
       MARIADB_USER: ${KEYCLOAK_DB_USER}
@@ -372,11 +466,8 @@ services:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
 
       interval: 10s
-
       timeout: 5s
-
       retries: 10
-
       start_period: 30s
 
     networks:
@@ -400,6 +491,10 @@ networks:
 volumes:
 
   nginx_cfg:
+
+  certbot_conf:
+
+  certbot_www:
 
   backend_db:
 

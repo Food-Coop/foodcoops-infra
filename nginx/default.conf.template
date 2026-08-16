@@ -1,142 +1,228 @@
+# =============================================================================
+# HTTP
+# =============================================================================
+#
+# Used for:
+#
+#   1. Let's Encrypt HTTP-01 challenge
+#   2. Redirecting all normal HTTP traffic to HTTPS
+#
+# =============================================================================
+
 server {
     listen 80 default_server;
 
-    server_name _;
+    server_name foodcoop.fun mika.foodcoop.fun;
+
+
+    # -------------------------------------------------------------------------
+    # Let's Encrypt / Certbot
+    # -------------------------------------------------------------------------
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+
+    # -------------------------------------------------------------------------
+    # Everything else -> canonical HTTPS URL
+    # -------------------------------------------------------------------------
+
+    location / {
+        return 301 https://mika.foodcoop.fun$request_uri;
+    }
+}
+
+
+# =============================================================================
+# HTTPS - root domain
+# =============================================================================
+#
+# https://foodcoop.fun/...
+#
+# becomes:
+#
+# https://mika.foodcoop.fun/...
+#
+# =============================================================================
+
+server {
+    listen 443 ssl;
+
+    server_name foodcoop.fun;
+
+
+    # -------------------------------------------------------------------------
+    # TLS
+    # -------------------------------------------------------------------------
+
+    ssl_certificate
+        /etc/letsencrypt/live/foodcoop.fun/fullchain.pem;
+
+    ssl_certificate_key
+        /etc/letsencrypt/live/foodcoop.fun/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+
+    # -------------------------------------------------------------------------
+    # Redirect to canonical hostname
+    # -------------------------------------------------------------------------
+
+    return 301 https://mika.foodcoop.fun$request_uri;
+}
+
+
+# =============================================================================
+# HTTPS - Food-Coop Application
+# =============================================================================
+
+server {
+    listen 443 ssl default_server;
+
+    server_name mika.foodcoop.fun;
+
+
+    # =========================================================================
+    # TLS
+    # =========================================================================
+
+    ssl_certificate
+        /etc/letsencrypt/live/foodcoop.fun/fullchain.pem;
+
+    ssl_certificate_key
+        /etc/letsencrypt/live/foodcoop.fun/privkey.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+
+    # =========================================================================
+    # Frontend
+    # =========================================================================
 
     root /usr/share/nginx/html;
+
     index index.html;
 
 
-    # =====================================================
+    # =========================================================================
+    # Docker DNS
+    # =========================================================================
+    #
+    # Resolve backend/keycloak dynamically.
+    #
+    # This allows nginx/frontend to start even if the backend is temporarily
+    # unavailable.
+    #
+    # =========================================================================
+
+    resolver 127.0.0.11 ipv6=off valid=10s;
+
+    set $backend_upstream backend:8080;
+
+    set $keycloak_upstream keycloak:8080;
+
+
+    # =========================================================================
     # Backend API
-    # =====================================================
-    #
-    # Öffentlich:
-    #
-    #   http://SERVER_IP/api/...
-    #
-    # Docker-intern:
-    #
-    #   http://backend:8080/api/...
-    #
-    # Der Slash hinter /api bleibt erhalten.
-    #
-    # Beispiel:
-    #
-    #   /api/products
-    #
-    # wird:
-    #
-    #   http://backend:8080/api/products
-    #
-    # Falls dein Backend selbst KEIN /api verwendet,
-    # ändere proxy_pass später auf:
-    #
-    #   proxy_pass http://backend:8080/;
-    #
-    # =====================================================
-
-    location /api/ {
-        proxy_pass http://backend:8080/;
-
-        proxy_http_version 1.1;
-
-        proxy_set_header Host $host;
-
-        proxy_set_header X-Real-IP $remote_addr;
-
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-
-        proxy_set_header X-Forwarded-Host $host;
-
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_set_header X-Forwarded-Port $server_port;
-    }
-
-
-    # =====================================================
-    # Keycloak Admin
-    # =====================================================
-    #
-    # Admin GUI / Admin API nur von der konfigurierten
-    # ADMIN_ALLOWED_CIDR erreichbar.
-    #
-    # Beispiel:
-    #
-    # ADMIN_ALLOWED_CIDR=198.51.100.25/32
-    #
-    # =====================================================
-
-    location ^~ /auth/admin/ {
-        allow ${ADMIN_ALLOWED_CIDR};
-        deny all;
-
-        proxy_pass http://keycloak:8080;
-
-        proxy_http_version 1.1;
-
-        proxy_set_header Host $host;
-
-        proxy_set_header X-Real-IP $remote_addr;
-
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-
-        proxy_set_header X-Forwarded-Host $host;
-
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_set_header X-Forwarded-Port $server_port;
-    }
-
-
-    # =====================================================
-    # Keycloak
-    # =====================================================
-    #
-    # Muss öffentlich erreichbar sein.
+    # =========================================================================
     #
     # Browser:
     #
-    #   http://SERVER_IP/auth/
+    #   https://mika.foodcoop.fun/api/brotBestand
     #
-    # Docker-intern:
+    # Backend:
     #
-    #   http://keycloak:8080/auth/
+    #   http://backend:8080/brotBestand
     #
-    # =====================================================
+    # The /api prefix is intentionally removed.
+    #
+    # =========================================================================
 
-    location /auth/ {
-        proxy_pass http://keycloak:8080;
+    location = /api {
+        return 308 /api/;
+    }
+
+
+    location /api/ {
+
+        rewrite ^/api/(.*)$ /$1 break;
+
+        proxy_pass http://$backend_upstream;
 
         proxy_http_version 1.1;
+
+
+        # ---------------------------------------------------------------------
+        # Proxy headers
+        # ---------------------------------------------------------------------
 
         proxy_set_header Host $host;
 
         proxy_set_header X-Real-IP $remote_addr;
 
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
 
         proxy_set_header X-Forwarded-Host $host;
 
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto https;
 
-        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Port 443;
     }
 
 
-    # =====================================================
-    # Frontend
-    # =====================================================
+
+
+
+
+    # =========================================================================
+    # Keycloak
+    # =========================================================================
     #
-    # Muss ganz unten stehen, weil "/" sonst auch /api und
-    # /auth matchen würde.
+    # Public authentication endpoints.
     #
-    # SPA fallback auf index.html.
+    # Browser:
     #
-    # =====================================================
+    #   https://mika.foodcoop.fun/auth/realms/foodcoop/...
+    #
+    # Docker:
+    #
+    #   http://keycloak:8080/auth/realms/foodcoop/...
+    #
+    # =========================================================================
+
+    location = /auth {
+        return 308 /auth/;
+    }
+
+
+    location /auth/ {
+
+        proxy_pass http://$keycloak_upstream;
+
+        proxy_http_version 1.1;
+
+
+        proxy_set_header Host $host;
+
+        proxy_set_header X-Real-IP $remote_addr;
+
+        proxy_set_header X-Forwarded-For $remote_addr;
+
+        proxy_set_header X-Forwarded-Host $host;
+
+        proxy_set_header X-Forwarded-Proto https;
+
+        proxy_set_header X-Forwarded-Port 443;
+    }
+
+
+    # =========================================================================
+    # React Frontend
+    # =========================================================================
 
     location / {
+
         try_files $uri $uri/ /index.html;
     }
 }
