@@ -2,96 +2,92 @@
 # HTTP
 # =============================================================================
 #
-# Used for:
+# Verwendet für:
 #
-#   1. Let's Encrypt HTTP-01 challenge
-#   2. Redirecting all normal HTTP traffic to HTTPS
+#   1. Let's Encrypt HTTP-01 Challenge
+#   2. Redirect aller normalen HTTP-Requests auf HTTPS
 #
 # =============================================================================
 
 server {
     listen 80 default_server;
 
-    server_name foodcoop.fun mika.foodcoop.fun;
+    server_name ${ROOT_DOMAIN} ${DOMAIN};
 
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # Let's Encrypt / Certbot
-    # -------------------------------------------------------------------------
+    # =========================================================================
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
 
-    # -------------------------------------------------------------------------
-    # Everything else -> canonical HTTPS URL
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Alles andere -> kanonische HTTPS-Domain
+    # =========================================================================
 
     location / {
-        return 301 https://mika.foodcoop.fun$request_uri;
+        return 301 https://${DOMAIN}$request_uri;
     }
 }
 
 
 # =============================================================================
-# HTTPS - root domain
+# HTTPS - Root Domain
 # =============================================================================
 #
-# https://foodcoop.fun/...
+# Beispiel:
 #
-# becomes:
+#   https://foodcoop.fun/...
 #
-# https://mika.foodcoop.fun/...
+# wird umgeleitet auf:
+#
+#   https://mika.foodcoop.fun/...
 #
 # =============================================================================
 
 server {
     listen 443 ssl;
 
-    server_name foodcoop.fun;
+    server_name ${ROOT_DOMAIN};
 
 
-    # -------------------------------------------------------------------------
+    # =========================================================================
     # TLS
-    # -------------------------------------------------------------------------
+    # =========================================================================
 
-    ssl_certificate
-        /etc/letsencrypt/live/foodcoop.fun/fullchain.pem;
-
-    ssl_certificate_key
-        /etc/letsencrypt/live/foodcoop.fun/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
 
 
-    # -------------------------------------------------------------------------
-    # Redirect to canonical hostname
-    # -------------------------------------------------------------------------
+    # =========================================================================
+    # Redirect auf kanonische Domain
+    # =========================================================================
 
-    return 301 https://mika.foodcoop.fun$request_uri;
+    return 301 https://${DOMAIN}$request_uri;
 }
 
 
 # =============================================================================
-# HTTPS - Food-Coop Application
+# HTTPS - Food-Coop Anwendung
 # =============================================================================
 
 server {
     listen 443 ssl default_server;
 
-    server_name mika.foodcoop.fun;
+    server_name ${DOMAIN};
 
 
     # =========================================================================
     # TLS
     # =========================================================================
 
-    ssl_certificate
-        /etc/letsencrypt/live/foodcoop.fun/fullchain.pem;
-
-    ssl_certificate_key
-        /etc/letsencrypt/live/foodcoop.fun/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/privkey.pem;
 
     ssl_protocols TLSv1.2 TLSv1.3;
 
@@ -109,17 +105,19 @@ server {
     # Docker DNS
     # =========================================================================
     #
-    # Resolve backend/keycloak dynamically.
+    # Docker stellt unter 127.0.0.11 einen internen DNS-Resolver bereit.
     #
-    # This allows nginx/frontend to start even if the backend is temporarily
-    # unavailable.
+    # Durch die Verwendung von Variablen in proxy_pass versucht nginx nicht,
+    # backend und keycloak schon beim eigenen Start aufzulösen.
+    #
+    # Dadurch kann nginx / das Frontend bereits laufen, während Backend oder
+    # Keycloak noch starten.
     #
     # =========================================================================
 
     resolver 127.0.0.11 ipv6=off valid=10s;
 
     set $backend_upstream backend:8080;
-
     set $keycloak_upstream keycloak:8080;
 
 
@@ -127,15 +125,15 @@ server {
     # Backend API
     # =========================================================================
     #
-    # Browser:
+    # Öffentlich:
     #
-    #   https://mika.foodcoop.fun/api/brotBestand
+    #   https://${DOMAIN}/api/brotBestand
     #
-    # Backend:
+    # Docker-intern:
     #
     #   http://backend:8080/brotBestand
     #
-    # The /api prefix is intentionally removed.
+    # Das Präfix /api/ wird entfernt.
     #
     # =========================================================================
 
@@ -146,6 +144,7 @@ server {
 
     location /api/ {
 
+        # /api/brotBestand -> /brotBestand
         rewrite ^/api/(.*)$ /$1 break;
 
         proxy_pass http://$backend_upstream;
@@ -154,40 +153,49 @@ server {
 
 
         # ---------------------------------------------------------------------
-        # Proxy headers
+        # Forwarded Headers
         # ---------------------------------------------------------------------
 
         proxy_set_header Host $host;
 
         proxy_set_header X-Real-IP $remote_addr;
 
-        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
         proxy_set_header X-Forwarded-Host $host;
 
         proxy_set_header X-Forwarded-Proto https;
 
         proxy_set_header X-Forwarded-Port 443;
+
+
+        # ---------------------------------------------------------------------
+        # Timeouts
+        # ---------------------------------------------------------------------
+
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
-
-
-
-
 
 
     # =========================================================================
     # Keycloak
     # =========================================================================
     #
-    # Public authentication endpoints.
+    # Öffentlich:
     #
-    # Browser:
+    #   https://${DOMAIN}/auth/
     #
-    #   https://mika.foodcoop.fun/auth/realms/foodcoop/...
+    # Docker-intern:
     #
-    # Docker:
+    #   http://keycloak:8080/auth/
     #
-    #   http://keycloak:8080/auth/realms/foodcoop/...
+    # /auth bleibt erhalten, weil Keycloak selbst mit
+    #
+    #   KC_HTTP_RELATIVE_PATH=/auth
+    #
+    # läuft.
     #
     # =========================================================================
 
@@ -203,30 +211,71 @@ server {
         proxy_http_version 1.1;
 
 
+        # ---------------------------------------------------------------------
+        # Forwarded Headers
+        # ---------------------------------------------------------------------
+
         proxy_set_header Host $host;
 
         proxy_set_header X-Real-IP $remote_addr;
 
-        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
         proxy_set_header X-Forwarded-Host $host;
 
         proxy_set_header X-Forwarded-Proto https;
 
         proxy_set_header X-Forwarded-Port 443;
+
+
+        # ---------------------------------------------------------------------
+        # Timeouts
+        # ---------------------------------------------------------------------
+
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+
+    # =========================================================================
+    # Versteckte / sensible Dateien blockieren
+    # =========================================================================
+    #
+    # Beispiele:
+    #
+    #   /.env
+    #   /.env.production
+    #   /.git/config
+    #   /config/.env
+    #   /.DS_Store
+    #
+    # /.well-known bleibt davon ausgenommen.
+    #
+    # =========================================================================
+
+    location ~ /\.(?!well-known/) {
+        return 404;
     }
 
 
     # =========================================================================
     # React Frontend
     # =========================================================================
-    # Keine versteckten Dateien ausliefern
-    # .env, .git, .DS_Store, ...
-    location ~ /\.(?!well-known/) {
-        return 404;
-    }
-    location / {
+    #
+    # SPA-Fallback:
+    #
+    #   /irgendeine/react/route
+    #
+    # wird auf:
+    #
+    #   /index.html
+    #
+    # zurückgeführt.
+    #
+    # =========================================================================
 
+    location / {
         try_files $uri $uri/ /index.html;
     }
 }

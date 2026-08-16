@@ -10,7 +10,17 @@ services:
     image: nginx:alpine
     restart: "no"
 
+    environment:
+      DOMAIN: ${DOMAIN}
+      ROOT_DOMAIN: ${ROOT_DOMAIN}
+      CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME}
 
+    command:
+      - -c
+      - |
+        envsubst '$$DOMAIN $$ROOT_DOMAIN $$CERTBOT_CERT_NAME' \
+          < /templates/default.conf.template \
+          > /etc/nginx/conf.d/default.conf
 
     entrypoint:
       - /bin/sh
