@@ -220,7 +220,11 @@ server {
     # =========================================================================
     # React Frontend
     # =========================================================================
-
+    # Keine versteckten Dateien ausliefern
+    # .env, .git, .DS_Store, ...
+    location ~ /\.(?!well-known/) {
+        return 404;
+    }
     location / {
 
         try_files $uri $uri/ /index.html;
