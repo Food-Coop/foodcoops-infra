@@ -190,13 +190,9 @@ services:
     restart: unless-stopped
 
     environment:
-
       MARIADB_DATABASE: ${BACKEND_DB_DATABASE}
-
       MARIADB_USER: ${BACKEND_DB_USER}
-
       MARIADB_PASSWORD: ${BACKEND_DB_PASSWORD}
-
       MARIADB_ROOT_PASSWORD: ${BACKEND_DB_ROOT_PASSWORD}
 
     volumes:
@@ -205,15 +201,14 @@ services:
     expose:
       - "${MARIADB_PORT_INTERNAL}"
 
+    ports:
+      - "127.0.0.1:3307:3306"
+
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-
       interval: 10s
-
       timeout: 5s
-
       retries: 10
-
       start_period: 30s
 
     networks:
