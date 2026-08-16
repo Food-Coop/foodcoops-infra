@@ -83,7 +83,7 @@ services:
 
   frontend:
     build:
-      context: ../foodcoops-frontend
+      context: ../foodcoops-pwa
       dockerfile: Dockerfile
 
       args:
