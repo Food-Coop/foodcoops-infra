@@ -1,0 +1,292 @@
+:root {
+    --mika-green: #6b7f3a;
+    --mika-green-dark: #55672d;
+    --mika-background: #f6f7f3;
+    --mika-paper: #ffffff;
+    --mika-text: #252820;
+    --mika-muted: #6b7063;
+    --mika-border: #dfe3d8;
+}
+
+
+/* ==========================================================================
+   Seite
+   ========================================================================== */
+
+body {
+    background:
+            var(--mika-background) !important;
+
+    color:
+            var(--mika-text) !important;
+
+    font-family:
+            Arial,
+            Helvetica,
+            sans-serif !important;
+}
+
+
+/* ==========================================================================
+   Login-Bereich
+   ========================================================================== */
+
+.login-pf-page {
+    min-height:
+            100vh;
+
+    display:
+            flex;
+
+    align-items:
+            center;
+
+    justify-content:
+            center;
+
+    padding:
+            24px;
+}
+
+
+.login-pf-page .card-pf {
+    width:
+            100%;
+
+    max-width:
+            460px;
+
+    margin:
+            0;
+
+    padding:
+            36px;
+
+    background:
+            var(--mika-paper);
+
+    border:
+            1px solid
+            var(--mika-border);
+
+    border-radius:
+            16px;
+
+    box-shadow:
+            0 12px 40px
+            rgba(
+                    0,
+                    0,
+                    0,
+                    0.08
+            );
+}
+
+
+/* ==========================================================================
+   Überschrift
+   ========================================================================== */
+
+#kc-header-wrapper,
+#kc-page-title {
+    color:
+            var(--mika-text) !important;
+
+    font-weight:
+            700 !important;
+}
+
+
+#kc-header-wrapper {
+    font-size:
+            0;
+
+    margin-bottom:
+            20px;
+}
+
+
+#kc-header-wrapper::after {
+    content:
+            "FoodCoop MiKa";
+
+    display:
+            block;
+
+    font-size:
+            28px;
+
+    line-height:
+            1.2;
+
+    color:
+            var(--mika-text);
+}
+
+
+/* ==========================================================================
+   Labels
+   ========================================================================== */
+
+label {
+    color:
+            var(--mika-text) !important;
+
+    font-weight:
+            600 !important;
+}
+
+
+/* ==========================================================================
+   Eingabefelder
+   ========================================================================== */
+
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+    width:
+            100%;
+
+    min-height:
+            48px;
+
+    padding:
+            10px 14px !important;
+
+    color:
+            var(--mika-text) !important;
+
+    background:
+            #ffffff !important;
+
+    border:
+            1px solid
+            var(--mika-border) !important;
+
+    border-radius:
+            8px !important;
+
+    box-shadow:
+            none !important;
+
+    outline:
+            none !important;
+
+    transition:
+            border-color 150ms ease,
+            box-shadow 150ms ease;
+}
+
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus {
+    border-color:
+            var(--mika-green) !important;
+
+    box-shadow:
+            0 0 0 3px
+            rgba(
+                    107,
+                    127,
+                    58,
+                    0.15
+            ) !important;
+}
+
+
+/* ==========================================================================
+   Login-Button
+   ========================================================================== */
+
+input[type="submit"],
+button[type="submit"],
+.pf-v5-c-button.pf-m-primary,
+.pf-c-button.pf-m-primary {
+    min-height:
+            48px !important;
+
+    background:
+            var(--mika-green) !important;
+
+    border:
+            0 !important;
+
+    border-radius:
+            8px !important;
+
+    color:
+            #ffffff !important;
+
+    font-weight:
+            700 !important;
+
+    box-shadow:
+            none !important;
+}
+
+
+input[type="submit"]:hover,
+button[type="submit"]:hover,
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-c-button.pf-m-primary:hover {
+    background:
+            var(--mika-green-dark) !important;
+}
+
+
+/* ==========================================================================
+   Links
+   ========================================================================== */
+
+a {
+    color:
+            var(--mika-green-dark) !important;
+}
+
+
+a:hover {
+    color:
+            var(--mika-green) !important;
+}
+
+
+/* ==========================================================================
+   Meldungen
+   ========================================================================== */
+
+.alert-error,
+.pf-v5-c-alert.pf-m-danger,
+.pf-c-alert.pf-m-danger {
+    border-radius:
+            8px;
+}
+
+
+/* ==========================================================================
+   Mobile
+   ========================================================================== */
+
+@media (
+max-width: 600px
+) {
+    .login-pf-page {
+        padding:
+                16px;
+    }
+
+
+    .login-pf-page .card-pf {
+        padding:
+                24px 20px;
+
+        border-radius:
+                12px;
+    }
+
+
+    #kc-header-wrapper::after {
+        font-size:
+                24px;
+    }
+}

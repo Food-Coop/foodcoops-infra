@@ -449,7 +449,8 @@ services:
     networks:
       - foodcoops
 
-
+    volumes:
+      - ./keycloak/themes/mika:/opt/keycloak/themes/mika:ro
   # ===========================================================================
   # Keycloak MariaDB
   # ===========================================================================
