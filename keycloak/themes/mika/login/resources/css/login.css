@@ -1,19 +1,55 @@
+/* ==========================================================================
+   FoodCoop MiKa - Keycloak Login Theme
+   ========================================================================== */
+
 :root {
-    --mika-green: #6b7f3a;
-    --mika-green-dark: #55672d;
-    --mika-background: #f6f7f3;
+    --mika-green: #3f7858;
+    --mika-green-hover: #35684c;
+
+    --mika-background: #f7f8f5;
     --mika-paper: #ffffff;
-    --mika-text: #252820;
-    --mika-muted: #6b7063;
-    --mika-border: #dfe3d8;
+
+    --mika-text: #182019;
+    --mika-text-secondary: #626a63;
+
+    --mika-border: #dde2dc;
+
+    --mika-error: #b3261e;
+
+    --mika-radius: 12px;
+
+    --mika-shadow:
+            0 12px 35px
+            rgba(24, 32, 25, 0.10);
 }
 
 
 /* ==========================================================================
-   Seite
+   Grundlayout
    ========================================================================== */
 
+html,
 body {
+    min-height: 100%;
+}
+
+
+html.login-pf {
+    background:
+            var(--mika-background) !important;
+}
+
+
+body {
+    min-height:
+            100vh !important;
+
+    margin:
+            0 !important;
+
+    padding:
+            0 !important;
+
     background:
             var(--mika-background) !important;
 
@@ -21,22 +57,117 @@ body {
             var(--mika-text) !important;
 
     font-family:
+            Inter,
+            Roboto,
+            "Helvetica Neue",
             Arial,
-            Helvetica,
             sans-serif !important;
 }
 
 
 /* ==========================================================================
-   Login-Bereich
+   Keycloak Hauptcontainer
    ========================================================================== */
 
-.login-pf-page {
+/*
+ * keycloak.v2 nutzt PatternFly für das äußere Layout.
+ * Wir machen daraus bewusst eine einfache zentrierte Fläche.
+ */
+
+.pf-v5-c-login {
     min-height:
-            100vh;
+            100vh !important;
 
     display:
-            flex;
+            flex !important;
+
+    align-items:
+            center !important;
+
+    justify-content:
+            center !important;
+
+    background:
+            var(--mika-background) !important;
+}
+
+
+.pf-v5-c-login__container {
+    width:
+            100% !important;
+
+    max-width:
+            520px !important;
+
+    display:
+            flex !important;
+
+    flex-direction:
+            column !important;
+
+    grid-template-columns:
+        none !important;
+
+    gap:
+            0 !important;
+
+    padding:
+            24px !important;
+
+    margin:
+            0 auto !important;
+}
+
+
+/* ==========================================================================
+   FoodCoop MiKa Branding
+   ========================================================================== */
+
+#kc-header {
+    width:
+            100% !important;
+
+    margin:
+            0 !important;
+
+    padding:
+            0 !important;
+
+    order:
+            0 !important;
+
+    text-align:
+            left !important;
+}
+
+
+#kc-header-wrapper {
+    width:
+            100% !important;
+
+    margin:
+            0 0 20px 0 !important;
+
+    padding:
+            0 !important;
+
+    color:
+            transparent !important;
+
+    font-size:
+            0 !important;
+
+    line-height:
+            1 !important;
+}
+
+
+#kc-header-wrapper::before {
+    content:
+            "F";
+
+    display:
+            inline-flex;
 
     align-items:
             center;
@@ -44,83 +175,154 @@ body {
     justify-content:
             center;
 
-    padding:
+    width:
+            46px;
+
+    height:
+            46px;
+
+    margin-right:
+            14px;
+
+    border-radius:
+            10px;
+
+    background:
+            var(--mika-green);
+
+    color:
+            #ffffff;
+
+    font-size:
             24px;
+
+    font-weight:
+            700;
+
+    vertical-align:
+            middle;
 }
 
 
-.login-pf-page .card-pf {
-    width:
-            100%;
+#kc-header-wrapper::after {
+    content:
+            "FoodCoop MiKa\A Gemeinsam einkaufen";
 
-    max-width:
-            460px;
+    display:
+            inline-block;
+
+    white-space:
+            pre;
+
+    vertical-align:
+            middle;
+
+    color:
+            var(--mika-text);
+
+    font-size:
+            22px;
+
+    line-height:
+            1.35;
+
+    font-weight:
+            700;
+}
+
+
+/*
+ * Die zweite Zeile soll etwas unauffälliger wirken.
+ *
+ * Mit reinem ::after kann man die beiden Zeilen nicht separat
+ * formatieren. Darum halten wir sie bewusst schlicht.
+ */
+
+
+/* ==========================================================================
+   Login-Karte
+   ========================================================================== */
+
+.pf-v5-c-login__main {
+    width:
+            100% !important;
 
     margin:
-            0;
+            0 !important;
 
     padding:
-            36px;
+            34px !important;
 
     background:
-            var(--mika-paper);
+            var(--mika-paper) !important;
 
     border:
             1px solid
-            var(--mika-border);
+            var(--mika-border) !important;
 
     border-radius:
-            16px;
+            var(--mika-radius) !important;
 
     box-shadow:
-            0 12px 40px
-            rgba(
-                    0,
-                    0,
-                    0,
-                    0.08
-            );
+            var(--mika-shadow) !important;
+}
+
+
+/* Manche Keycloak-Versionen setzen zusätzliche Grid-Positionen */
+
+.pf-v5-c-login__main,
+.pf-v5-c-login__header,
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+    grid-column:
+            auto !important;
+
+    grid-row:
+            auto !important;
 }
 
 
 /* ==========================================================================
-   Überschrift
+   Seitentitel
    ========================================================================== */
 
-#kc-header-wrapper,
 #kc-page-title {
+    margin:
+            0 0 24px 0 !important;
+
+    padding:
+            0 !important;
+
     color:
             var(--mika-text) !important;
+
+    font-size:
+            26px !important;
+
+    line-height:
+            1.25 !important;
 
     font-weight:
             700 !important;
 }
 
 
-#kc-header-wrapper {
-    font-size:
-            0;
+/* ==========================================================================
+   Formular
+   ========================================================================== */
 
-    margin-bottom:
-            20px;
+#kc-form,
+#kc-form-wrapper,
+#kc-form-login {
+    width:
+            100% !important;
 }
 
 
-#kc-header-wrapper::after {
-    content:
-            "FoodCoop MiKa";
-
-    display:
-            block;
-
-    font-size:
-            28px;
-
-    line-height:
-            1.2;
-
-    color:
-            var(--mika-text);
+.pf-v5-c-form__group {
+    margin-bottom:
+            20px !important;
 }
 
 
@@ -128,9 +330,14 @@ body {
    Labels
    ========================================================================== */
 
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text,
 label {
     color:
             var(--mika-text) !important;
+
+    font-size:
+            14px !important;
 
     font-weight:
             600 !important;
@@ -138,30 +345,31 @@ label {
 
 
 /* ==========================================================================
-   Eingabefelder
+   Inputs
    ========================================================================== */
 
+.pf-v5-c-form-control,
 input[type="text"],
-input[type="password"],
-input[type="email"] {
+input[type="email"],
+input[type="password"] {
     width:
-            100%;
+            100% !important;
 
     min-height:
-            48px;
+            48px !important;
 
     padding:
-            10px 14px !important;
-
-    color:
-            var(--mika-text) !important;
+            10px 12px !important;
 
     background:
             #ffffff !important;
 
+    color:
+            var(--mika-text) !important;
+
     border:
             1px solid
-            var(--mika-border) !important;
+            #cfd5cf !important;
 
     border-radius:
             8px !important;
@@ -169,69 +377,127 @@ input[type="email"] {
     box-shadow:
             none !important;
 
-    outline:
-            none !important;
+    font-size:
+            16px !important;
 
     transition:
-            border-color 150ms ease,
-            box-shadow 150ms ease;
+            border-color 140ms ease,
+            box-shadow 140ms ease !important;
 }
 
 
+.pf-v5-c-form-control:focus-within,
 input[type="text"]:focus,
-input[type="password"]:focus,
-input[type="email"]:focus {
+input[type="email"]:focus,
+input[type="password"]:focus {
     border-color:
             var(--mika-green) !important;
 
     box-shadow:
             0 0 0 3px
-            rgba(
-                    107,
-                    127,
-                    58,
-                    0.15
-            ) !important;
+            rgba(63, 120, 88, 0.14) !important;
+
+    outline:
+            none !important;
 }
 
 
 /* ==========================================================================
-   Login-Button
+   Passwortfeld / Auge
    ========================================================================== */
 
-input[type="submit"],
-button[type="submit"],
-.pf-v5-c-button.pf-m-primary,
-.pf-c-button.pf-m-primary {
+.pf-v5-c-input-group {
+    border-radius:
+            8px !important;
+}
+
+
+.pf-v5-c-input-group__item button,
+button[data-password-toggle] {
     min-height:
             48px !important;
 
+    border-color:
+            #cfd5cf !important;
+
     background:
-            var(--mika-green) !important;
+            #ffffff !important;
+
+    color:
+            var(--mika-text-secondary) !important;
+}
+
+
+/* ==========================================================================
+   Primärer Button
+   ========================================================================== */
+
+#kc-login,
+#kc-submit,
+input[type="submit"],
+button[type="submit"],
+.pf-v5-c-button.pf-m-primary {
+    width:
+            100% !important;
+
+    min-height:
+            48px !important;
+
+    padding:
+            10px 18px !important;
 
     border:
-            0 !important;
+            1px solid
+            var(--mika-green) !important;
 
     border-radius:
             8px !important;
 
+    background:
+            var(--mika-green) !important;
+
     color:
             #ffffff !important;
+
+    font-size:
+            15px !important;
 
     font-weight:
             700 !important;
 
     box-shadow:
             none !important;
+
+    cursor:
+            pointer !important;
+
+    transition:
+            background-color 140ms ease,
+            border-color 140ms ease !important;
 }
 
 
+#kc-login:hover,
+#kc-submit:hover,
 input[type="submit"]:hover,
 button[type="submit"]:hover,
-.pf-v5-c-button.pf-m-primary:hover,
-.pf-c-button.pf-m-primary:hover {
+.pf-v5-c-button.pf-m-primary:hover {
     background:
-            var(--mika-green-dark) !important;
+            var(--mika-green-hover) !important;
+
+    border-color:
+            var(--mika-green-hover) !important;
+}
+
+
+/* ==========================================================================
+   Sekundäre Buttons
+   ========================================================================== */
+
+.pf-v5-c-button.pf-m-secondary,
+.pf-v5-c-button.pf-m-link {
+    color:
+            var(--mika-green) !important;
 }
 
 
@@ -241,25 +507,142 @@ button[type="submit"]:hover,
 
 a {
     color:
-            var(--mika-green-dark) !important;
+            var(--mika-green) !important;
+
+    text-decoration:
+            none !important;
+
+    font-weight:
+            600;
 }
 
 
 a:hover {
     color:
-            var(--mika-green) !important;
+            var(--mika-green-hover) !important;
+
+    text-decoration:
+            underline !important;
 }
 
 
 /* ==========================================================================
-   Meldungen
+   Remember me / Optionen
    ========================================================================== */
 
-.alert-error,
-.pf-v5-c-alert.pf-m-danger,
-.pf-c-alert.pf-m-danger {
+#kc-form-options {
+    margin-top:
+            6px !important;
+
+    color:
+            var(--mika-text-secondary) !important;
+}
+
+
+#kc-form-options label {
+    font-weight:
+            400 !important;
+}
+
+
+/* ==========================================================================
+   Fehlermeldungen
+   ========================================================================== */
+
+.pf-v5-c-alert {
+    margin-bottom:
+            20px !important;
+
     border-radius:
-            8px;
+            8px !important;
+}
+
+
+.pf-v5-c-alert.pf-m-danger {
+    background:
+            #fdf1f0 !important;
+
+    border-color:
+            #f0c5c2 !important;
+
+    color:
+            var(--mika-error) !important;
+}
+
+
+/* ==========================================================================
+   Registrierung / Footer-Bereich
+   ========================================================================== */
+
+#kc-info {
+    margin-top:
+            22px !important;
+
+    padding-top:
+            18px !important;
+
+    border-top:
+            1px solid
+            var(--mika-border) !important;
+
+    background:
+            transparent !important;
+}
+
+
+#kc-info-wrapper {
+    background:
+            transparent !important;
+
+    color:
+            var(--mika-text-secondary) !important;
+}
+
+
+/* ==========================================================================
+   Social Login
+   ========================================================================== */
+
+#kc-social-providers {
+    margin-top:
+            24px !important;
+}
+
+
+#kc-social-providers hr {
+    border-color:
+            var(--mika-border) !important;
+}
+
+
+#kc-social-providers .pf-v5-c-button {
+    min-height:
+            46px !important;
+
+    border-radius:
+            8px !important;
+}
+
+
+/* ==========================================================================
+   Hilfetexte
+   ========================================================================== */
+
+.instruction,
+.pf-v5-c-form__helper-text,
+.pf-v5-c-helper-text {
+    color:
+            var(--mika-text-secondary) !important;
+}
+
+
+/* ==========================================================================
+   Keycloak Branding / unnötige Flächen verhindern
+   ========================================================================== */
+
+.pf-v5-c-login__footer {
+    display:
+            none !important;
 }
 
 
@@ -267,26 +650,57 @@ a:hover {
    Mobile
    ========================================================================== */
 
-@media (
-max-width: 600px
-) {
-    .login-pf-page {
-        padding:
-                16px;
+@media (max-width: 600px) {
+    .pf-v5-c-login {
+        align-items:
+                flex-start !important;
     }
 
 
-    .login-pf-page .card-pf {
+    .pf-v5-c-login__container {
         padding:
-                24px 20px;
+                18px !important;
+
+        margin-top:
+                30px !important;
+    }
+
+
+    .pf-v5-c-login__main {
+        padding:
+                24px 20px !important;
 
         border-radius:
-                12px;
+                10px !important;
+    }
+
+
+    #kc-header-wrapper {
+        margin-bottom:
+                16px !important;
+    }
+
+
+    #kc-header-wrapper::before {
+        width:
+                42px;
+
+        height:
+                42px;
+
+        font-size:
+                22px;
     }
 
 
     #kc-header-wrapper::after {
         font-size:
-                24px;
+                19px;
+    }
+
+
+    #kc-page-title {
+        font-size:
+                23px !important;
     }
 }
