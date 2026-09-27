@@ -106,6 +106,9 @@ services:
         VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM}
         VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID}
 
+        VITE_KEYCLOAK_ADMIN_ROLE: ${KEYCLOAK_ADMIN_ROLE:-Admin}
+        VITE_KEYCLOAK_ORGANISATOR_ROLE: ${KEYCLOAK_ORGANISATOR_ROLE:-Organisator}
+
     restart: unless-stopped
 
     depends_on:
@@ -291,6 +294,27 @@ services:
 
 
       # -----------------------------------------------------------------------
+      # Benutzerverwaltung (Keycloak Admin API über Service Account)
+      # -----------------------------------------------------------------------
+
+      KEYCLOAK_SERVER_URL: ${KEYCLOAK_SERVER_URL}
+
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+
+      KEYCLOAK_ADMIN_ROLE: ${KEYCLOAK_ADMIN_ROLE:-Admin}
+
+      KEYCLOAK_ORGANISATOR_ROLE: ${KEYCLOAK_ORGANISATOR_ROLE:-Organisator}
+
+      KEYCLOAK_ROLE_CLIENT_ID: ${KEYCLOAK_ROLE_CLIENT_ID:-foodcoop-pwa}
+
+      KEYCLOAK_FRONTEND_CLIENT_ID: ${KEYCLOAK_FRONTEND_CLIENT_ID}
+
+      FRONTEND_PUBLIC_URL: ${FRONTEND_PUBLIC_URL}
+
+      SECURITY_REQUIRE_AUTHENTICATION: ${SECURITY_REQUIRE_AUTHENTICATION:-false}
+
+
+      # -----------------------------------------------------------------------
       # Mail
       # -----------------------------------------------------------------------
 
@@ -305,6 +329,16 @@ services:
       SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH}
 
       SPRING_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE}
+
+      MAIL_FROM: ${MAIL_FROM:-}
+
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-}
+
+      FOODCOOP_NAME: ${FOODCOOP_NAME:-FoodCoop MiKa}
+
+      MAIL_BETREFF_EINKAUF: ${MAIL_BETREFF_EINKAUF:-}
+
+      MAIL_BETREFF_EINKAUFSMANAGEMENT: ${MAIL_BETREFF_EINKAUFSMANAGEMENT:-}
 
     depends_on:
       backend-db:
@@ -451,6 +485,72 @@ services:
 
     volumes:
       - ./keycloak/themes/mika:/opt/keycloak/themes/mika:ro
+
+
+  # ===========================================================================
+  # Keycloak: Sprache, Mailtexte und SMTP aus der .env (läuft einmal nach dem Start)
+  # ===========================================================================
+  #
+  # Stellt den Realm auf Deutsch, setzt FOODCOOP_NAME als Anzeigenamen und
+  # eigene Texte für die Einladungs-Mail. SMTP nutzt dieselben Mail-Werte
+  # wie das Backend (ohne SPRING_MAIL_HOST wird SMTP übersprungen).
+  # Neu ausführen, z.B. nach Änderung der .env:
+  #
+  #   docker compose up keycloak-mail
+  #
+  # ===========================================================================
+
+  keycloak-mail:
+    image: quay.io/keycloak/keycloak:26.7.1
+
+    restart: "no"
+
+    entrypoint: ["/bin/bash", "/opt/keycloak/smtp-einrichten.sh"]
+
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+
+      KEYCLOAK_PORT_INTERNAL: ${KEYCLOAK_PORT_INTERNAL}
+
+      KC_HTTP_RELATIVE_PATH: ${KC_HTTP_RELATIVE_PATH}
+
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+
+      SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-true}
+
+      SPRING_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_SMTP_STARTTLS_ENABLE:-true}
+
+      MAIL_FROM: ${MAIL_FROM:-}
+
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-}
+
+      FOODCOOP_NAME: ${FOODCOOP_NAME:-FoodCoop MiKa}
+
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+
+      KEYCLOAK_LINK_GUELTIG_STUNDEN: ${KEYCLOAK_LINK_GUELTIG_STUNDEN:-72}
+
+    volumes:
+      - ./keycloak/smtp-einrichten.sh:/opt/keycloak/smtp-einrichten.sh:ro
+
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+    networks:
+      - foodcoops
+
+
   # ===========================================================================
   # Keycloak MariaDB
   # ===========================================================================
